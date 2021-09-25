@@ -31,7 +31,7 @@ module EscalatingLogger
       max_verbosity:         Logger::DEBUG,
       initial_token_count:   100,
       refill_rate:           1,
-      max_token_count:       100,
+      max_token_count:       200,
       triggering_log_levels: [Logger::ERROR]
     )
 

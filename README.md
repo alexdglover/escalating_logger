@@ -1,9 +1,9 @@
 # EscalatingLogger
 
 EscalatingLogger is a transparent subclass of Ruby's Logger that automatically
-increases log verbosity as the number of ERRORs logged exceeds a given rate 
-threshold. The intent is to get more log detail when things are going wrong,
-and less log noise when everything is going right.
+increases/decreases log verbosity based on the rate of `ERROR` messages being
+logged. The intent is to get more log detail when things are going wrong,
+and less log noise (and less log costs) when everything is going right.
 
 ## Installation
 
@@ -27,6 +27,101 @@ Use it anywhere you use [Logger](https://github.com/ruby/logger).
 EscalatingLogger maintains the same interface as `Logger`, so it's safe
 to use as a drop-in replacement. Note that EscalatingLogger is slower than
 Logger, so keep the performance hit in mind (see [Benchmarks](#benchmarks))
+
+## Demo
+
+The example below is simply for demonstration purposes. You should choose
+higher values for rate limiting for smoother changing of verbosity.
+
+```ruby
+class Tester
+  def initialize
+    @logger = EscalatingLogger::Logger.new(STDOUT, initial_token_count: 5, refill_rate: 1, max_token_count: 10, level: Logger::ERROR)
+  end
+
+  def method_that_triggers_escalation
+    @logger.debug('starting method method_that_triggers_escalation')
+    @logger.info('this thing happened')
+    @logger.warn('heads up, this might be a problem')
+    @logger.error('error - something broke!')
+  end
+
+  def method_that_only_warns
+    @logger.debug('starting method method_that_logs_warn')
+    @logger.info('this thing happened')
+    @logger.warn('heads up, this might be a problem')
+  end
+end
+
+t = Tester.new
+
+# Cause logger to become more verbose by logging lots of errors
+(1..50).each do |i|
+  t.method_that_triggers_escalation
+  sleep 0.2
+end
+```
+
+Running the example above, you'll see that initially only the `ERRORs` are
+logged. As more and more `ERROR`s are logged, EscalatingLogger changes the
+verbosity or `level` of the logger, causing `WARN` messages to appear, then
+`INFO` messages, and finally `DEBUG` messages.
+
+Note that this is based on the _rate_ of `ERROR` messages, not just the raw
+count. In the example above, the code is logging one `ERROR` message every 0.2
+seconds, but the token bucket is only refilling at the rate of 1 token per
+second. Therefore, logging gets continually more verbose until it hits the
+`max_verbosity` specified (defaults to `Logger::DEBUG`).
+
+If the rate of `ERROR` messages falls below the refill rate of the token
+bucket, eventually log verbosity will decrease. Try the example below
+(a continuation of the earlier code block):
+
+```ruby
+# As rate of error logs decreases, verbosity will decrease
+(1..100).each do |i|
+  t.method_that_only_warns
+  sleep 0.2
+end
+```
+
+You'll notice that as time progresses, `DEBUG` stop getting logged, then
+`INFO` stop getting logged, and finally the `WARN` messages disappear and
+nothing is being logged. The minimum verbosity can be controlled with the
+`min_verbosity` parameter (defaults to `Logger::ERROR`).
+
+## Tuning token bucket settings
+
+In a real world situation, the `initial_token_count` and
+`max_token_count` should be much larger values. Note that the token bucket
+acts as a two-sided rate limiter - if there are zero tokens remaining in the
+bucket, then the error rate has been too high for too long and verbosity should
+be increased. If number of tokens is equal to the maximum token count, then the
+error rate has been exceedingly low for too long and verbosity should be
+decreased.
+
+Because of this two-sided nature, you can control how sensitive the logger is
+to errors. In a balanced case, `max_token_count` would be twice the value of
+the `initial_token_count`. This results in balanced behavior. For example,
+with `initial_token_count = 100`, `max_token_count = 200`, and
+`refill_rate = 1`, then any error rate resulting in 101 or more tokens being
+used per 100 seconds would increase the verbosity. Similarly, any error rate
+resulting in 99 or less tokens being used per 100 seconds would decrease the
+verbosity.
+
+If you want your logger to be more sensitive to `ERROR` messages and decrease
+verbosity more slowly, skew your `initial_token_count` closer to zero than the
+`max_token_count`. For example, `initial_token_count = 50` and
+`max_token_count = 200` would increase verbosity faster, but decreasing
+verbosity would be slower.
+
+Finally, note that the rate limiting comes from a
+[token bucket](https://en.wikipedia.org/wiki/Token_bucket) implementation
+from [bozos_buckets](https://github.com/alexdglover/bozos_buckets/). This means
+the time window is not fixed, and bursting is supported. For example, with a
+`refill_rate = 1` and `initial_token_count = 100`, this would allow 1 error per
+second for 100 seconds, 50 errors per second for 2 seconds, or 100 errors per
+second for 1 second before increasing verbosity.
 
 ## Benchmarks
 
