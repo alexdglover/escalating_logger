@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    escalating_logger (0.1.0)
+    escalating_logger (0.0.1)
       bozos_buckets (~> 0.0.w)
 
 GEM
