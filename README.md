@@ -26,11 +26,11 @@ Or install it yourself as:
 Use it anywhere you use [Logger](https://github.com/ruby/logger).
 EscalatingLogger maintains the same interface as `Logger`, so it's safe
 to use as a drop-in replacement. Note that EscalatingLogger is slower than
-Logger, so keep the performance hit in mind (see [Benchmarks](##benchmarks))
+Logger, so keep the performance hit in mind (see [Benchmarks](#benchmarks))
 
 ## Benchmarks
 
-TL;DR using EscalatingLogger is 16% slower than Logger :not-bad:
+TL;DR using EscalatingLogger is ~18% slower than Logger :not-bad:
 
 ```ruby
 require 'logger'
